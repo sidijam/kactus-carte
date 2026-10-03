@@ -88,48 +88,59 @@ h1,h2,h3{font-family:var(--f-d);font-weight:600;margin:0;line-height:1.08}
 </style>
 <div class="app" id="app"></div>
 <script>
-const D={"date":"02/10/2026 à 22:08","adresse":"Bamako","wa":"22375000001","om":"","moov":"","wave":"","tables":20,"unis":[{"u":"KACTUS","cats":[{"c":"Café","label":"Café","emo":"☕","col":"#c2701f","items":[{"nom":"Latté vanille-cannelle","prix":2500}]}]}]};
+const D={"date":"03/10/2026 à 00:07","adresse":"Bamako","wa":"22375000001","om":"","moov":"","wave":"","tables":20,"unis":[{"u":"KACTUS","cats":[{"c":"Café","label":"Café","emo":"☕","col":"#c2701f","items":[{"nom":"Latté vanille-cannelle","prix":2500}]}]}]};
 (function(){
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fm=n=>Math.round(+n||0).toString().replace(/\B(?=(\d{3})+(?!\d))/g,' ');
 const money=n=>fm(n)+' F';
 const ls={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
-const MODES=['Espèces','Orange Money','Moov Money','Wave','Carte'],IC={'Espèces':'💵','Orange Money':'🟠','Moov Money':'🔵','Wave':'🌊','Carte':'💳'},MK={'Orange Money':'om','Moov Money':'moov','Wave':'wave'};
+const IC={'Espèces':'💵','Orange Money':'🟠','Moov Money':'🔵','Wave':'🌊','Carte':'💳'};
 const H=String(location.hash||'');
 const hT=(H.match(/t(\d{1,3})/i)||[])[1],hW=(H.match(/w(\d{8,15})/i)||[])[1];
 const WA=hW||(D&&D.wa)||'';
-const st={table:hT||'',u:'',cat:'',cart:[],mode:'Espèces',note:'',name:'',view:'menu',err:'',sent:false,last:''};
-try{const s=JSON.parse(ls.get('kg.carte')||'null');if(s&&Date.now()-s.at<3*3600e3){st.cart=s.cart||[];st.note=s.note||'';st.name=s.name||'';st.mode=s.mode||'Espèces';if(!st.table)st.table=s.table||''}}catch(e){}
-const save=()=>ls.set('kg.carte',JSON.stringify({cart:st.cart,note:st.note,name:st.name,mode:st.mode,table:st.table,at:Date.now()}));
+const st={type:hT?'table':'',table:hT||'',u:'',cat:'',cart:[],mode:'Espèces',note:'',name:'',tel:'',adr:'',rep:'',heure:'',view:'menu',sent:false,last:'',tried:false};
+try{const s=JSON.parse(ls.get('kg.carte2')||'null');if(s&&Date.now()-s.at<6*3600e3){['cart','note','name','tel','adr','rep','mode'].forEach(k=>{if(s[k]!=null)st[k]=s[k]});if(!hT&&s.type&&s.type!=='table')st.type=s.type}}catch(e){}
+const save=()=>ls.set('kg.carte2',JSON.stringify({cart:st.cart,note:st.note,name:st.name,tel:st.tel,adr:st.adr,rep:st.rep,mode:st.mode,type:st.type,at:Date.now()}));
 const unis=()=>(D&&D.unis)||[];
 const U=()=>unis().find(u=>u.u===st.u)||unis()[0];
 const total=()=>st.cart.reduce((a,i)=>a+i.q*i.p,0),count=()=>st.cart.reduce((a,i)=>a+i.q,0);
 const qOf=(u,n)=>{const x=st.cart.find(i=>i.u===u&&i.n===n);return x?x.q:0};
 const find=(u,n)=>{for(const c of (unis().find(x=>x.u===u)||{cats:[]}).cats)for(const it of c.items)if(it.nom===n)return it;return null};
+const telOk=()=>String(st.tel).replace(/\D/g,'').replace(/^00223|^223/,'').length===8;
+const TYPES={livraison:'Livraison',emporter:'À emporter',table:'Sur place'};
+const modes=()=>st.type==='livraison'?['Espèces','Orange Money','Moov Money','Wave']:['Espèces','Orange Money','Moov Money','Wave','Carte'];
+function missing(){
+  const m=[];if(st.type==='table')return m;
+  if(!st.type)m.push('le mode : à emporter ou livraison');
+  if(!st.name.trim())m.push('votre prénom');
+  if(!telOk())m.push('votre numéro de téléphone (8 chiffres)');
+  if(st.type==='livraison'&&!st.adr.trim())m.push('l\'adresse de livraison');
+  return m;
+}
 function msg(){
-  const L=['🛎️ *Commande KACTUS · TALA*','Table : '+st.table];
+  const L=['🛎️ *Commande KACTUS · TALA*','Type : '+(TYPES[st.type]||'')];
+  if(st.type==='table')L.push('Table : '+st.table);
   if(st.name.trim())L.push('Nom : '+st.name.trim());
+  if(st.type!=='table'&&st.tel.trim())L.push('Téléphone : '+st.tel.trim());
+  if(st.type==='livraison'){L.push('Adresse : '+st.adr.trim());if(st.rep.trim())L.push('Repère : '+st.rep.trim())}
+  if(st.type!=='table')L.push('Heure : '+(st.heure||'Dès que possible'));
   L.push('━━━━━━━━━━');
   ['KACTUS','TALA'].forEach(u=>{const g=st.cart.filter(i=>i.u===u);if(!g.length)return;L.push('*'+u+'*');g.forEach(i=>L.push('• '+i.q+' × '+i.n+' — '+fm(i.q*i.p)+' F'))});
-  L.push('━━━━━━━━━━','*Total : '+fm(total())+' F*','Paiement : '+st.mode);
+  L.push('━━━━━━━━━━','*Total : '+fm(total())+' F*','Paiement : '+st.mode+(st.type==='livraison'?' (à la livraison)':st.type==='emporter'?' (au retrait)':''));
   if(st.note.trim())L.push('Précision : '+st.note.trim());
-  L.push('Réf : T'+st.table+'-'+String(Date.now()).slice(-5));
+  L.push('Réf : '+(st.type==='table'?'T'+st.table:st.type==='livraison'?'L':'E')+'-'+String(Date.now()).slice(-5));
   return L.join('\n');
 }
 const waLink=()=>WA?'https://wa.me/'+WA+'?text='+encodeURIComponent(msg()):'';
 function top(){
   const n=count();
   return '<header class="top"><div class="brand"><b>KACTUS <i>·</i> TALA</b><small>'+esc((D&&D.adresse)||'Bamako')+'</small></div>'+
-    (st.table?'<button type="button" class="chip" data-a="tbl" aria-label="Table '+esc(st.table)+', changer"><span>Table</span><b>'+esc(st.table)+'</b></button>':'')+
+    (st.type==='table'?'<span class="chip"><span>Table</span><b>'+esc(st.table)+'</b></span>':st.type?'<span class="chip"><span>'+(st.type==='livraison'?'🛵':'🥡')+'</span><b style="font-size:1rem">'+TYPES[st.type]+'</b></span>':'')+
     '<button type="button" class="cartb" data-a="cart" aria-label="Ma commande, '+n+' article'+(n>1?'s':'')+'">🛍️'+(n?'<em>'+n+'</em>':'')+'</button></header>';
 }
-function vTable(){
-  return top()+'<section class="hero"><h1>Bienvenue</h1><p>Indiquez le numéro écrit sur votre table : votre commande arrivera au bon endroit.</p></section>'+
-   '<form class="card tbl" data-f="tbl"><label for="k-t" style="color:var(--mut)">Numéro de votre table</label><input id="k-t" type="tel" inputmode="numeric" maxlength="3" autocomplete="off" value="'+esc(st.table)+'"><p class="err" role="alert">'+esc(st.err)+'</p><button type="submit" class="btn">Voir la carte</button></form>';
-}
 function vMenu(){
-  if(!unis().length)return top()+'<div class="empty"><span>🌵</span><h2>La carte arrive bientôt</h2><p>Appelez un serveur : il prendra votre commande.</p></div>';
+  if(!unis().length)return top()+'<div class="empty"><span>🌵</span><h2>La carte arrive bientôt</h2><p>Écrivez-nous sur WhatsApp, nous prendrons votre commande.</p></div>';
   const u=U();st.u=u.u;if(!u.cats.some(c=>c.c===st.cat))st.cat=u.cats[0].c;
   const cat=u.cats.find(c=>c.c===st.cat);let sub=null;
   const items=cat.items.map(it=>{
@@ -139,48 +150,63 @@ function vMenu(){
       '<div class="ib"><h3>'+esc(it.nom)+'</h3>'+(it.desc?'<p>'+esc(it.desc)+'</p>':'')+'<div class="ir"><span class="pr">'+money(it.prix)+'</span>'+ctl+'</div></div></article>';
   }).join('');
   const n=count();
-  return top()+'<section class="hero"><h1>Notre carte</h1><p>Choisissez, puis envoyez votre commande sur WhatsApp. On vous l\'apporte à la table '+esc(st.table)+'.</p></section>'+
+  return top()+'<section class="hero"><h1>Notre carte</h1><p>'+(st.type==='table'?'Choisissez, puis envoyez votre commande sur WhatsApp. On vous l\'apporte à la table '+esc(st.table)+'.':'Commandez à emporter ou en livraison. Vous payez à la remise de votre commande.')+'</p></section>'+
    (unis().length>1?'<div class="seg" role="group" aria-label="Rubrique">'+unis().map(x=>'<button type="button" data-a="uni" data-u="'+x.u+'" aria-pressed="'+(x.u===u.u)+'">'+(x.u==='KACTUS'?'☕ KACTUS':'🏺 TALA')+'</button>').join('')+'</div>':'')+
    '<div class="cats" role="group" aria-label="Catégories">'+u.cats.map(c=>'<button type="button" data-a="cat" data-c="'+esc(c.c)+'" aria-pressed="'+(c.c===st.cat)+'">'+esc(c.emo)+' '+esc(c.label)+'</button>').join('')+'</div>'+
    '<div class="list">'+items+'</div>'+
    (n?'<button type="button" class="bar" data-a="cart"><em>'+n+'</em><span>Voir ma commande</span><strong>'+money(total())+'</strong></button>':'')+
-   '<p class="stamp">Carte du '+esc((D&&D.date)||'')+' · les prix peuvent évoluer, le serveur confirme le total.</p>';
+   '<p class="stamp">Carte du '+esc((D&&D.date)||'')+' · les prix peuvent évoluer, l\'équipe vous confirme le total sur WhatsApp.</p>';
 }
 function ins(){
-  const m=st.mode,k=MK[m],num=k&&D&&D[k];
-  if(m==='Espèces')return '<b>Réglez en espèces</b> au serveur quand il vous apporte votre commande.';
-  if(m==='Carte')return '<b>Paiement par carte</b> : le serveur vient avec le terminal.';
-  if(num)return '<b>Envoyez '+money(total())+' par '+esc(m)+'</b> au numéro marchand<span class="num">'+esc(num)+'</span>Puis envoyez votre commande : l\'équipe vérifie le paiement avant de la préparer.';
-  return '<b>Paiement par '+esc(m)+'</b> : un membre de l\'équipe passe à votre table pour le confirmer.';
+  const m=st.mode,where=st.type==='livraison'?'au livreur, à la livraison':st.type==='emporter'?'au comptoir, quand vous récupérez votre commande':'au serveur';
+  if(m==='Espèces')return '<b>Vous payez en espèces</b> '+where+'.';
+  if(m==='Carte')return '<b>Vous payez par carte</b> '+where+'.';
+  return '<b>Vous payez par '+esc(m)+'</b> '+where+'. Rien à payer maintenant.';
 }
+const f=(id,lab,val,ph,type,extra)=>'<div class="field"><label for="'+id+'">'+lab+'</label><input id="'+id+'" type="'+(type||'text')+'" value="'+esc(val)+'" placeholder="'+esc(ph||'')+'" '+(extra||'')+'></div>';
 function vCart(){
   if(!st.cart.length)return top()+'<button type="button" class="back" data-a="menu">← La carte</button><div class="empty"><span>🛍️</span><h2>Votre commande est vide</h2><p>Ajoutez des produits depuis la carte.</p></div>';
+  if(st.type==='livraison'&&st.mode==='Carte')st.mode='Espèces';
   const lines=st.cart.map(i=>'<div class="ln"><div class="n">'+esc(i.n)+'<small>'+money(i.p)+' · '+i.u+'</small></div><div class="q"><button type="button" data-a="q" data-u="'+i.u+'" data-d="-1" data-n="'+esc(i.n)+'" aria-label="Retirer un '+esc(i.n)+'">−</button><b>'+i.q+'</b><button type="button" data-a="q" data-u="'+i.u+'" data-d="1" data-n="'+esc(i.n)+'" aria-label="Ajouter un '+esc(i.n)+'">+</button></div><span class="p">'+money(i.q*i.p)+'</span></div>').join('');
-  const L=waLink();
+  const mi=missing(),ok=!mi.length&&!!WA,L=ok?waLink():'';
+  const who=st.type==='table'?'':
+   '<section class="card"><h2>Retrait ou livraison ?</h2><div class="modes" role="group" aria-label="Retrait ou livraison">'+
+    '<button type="button" data-a="type" data-t="emporter" aria-pressed="'+(st.type==='emporter')+'">🥡 À emporter</button><button type="button" data-a="type" data-t="livraison" aria-pressed="'+(st.type==='livraison')+'">🛵 Livraison</button></div>'+
+    (st.type?f('k-name','Votre prénom',st.name,'Ex. Awa','text','maxlength="40" autocomplete="given-name"')+f('k-tel','Votre numéro de téléphone',st.tel,'Ex. 70 12 34 56','tel','maxlength="20" inputmode="tel" autocomplete="tel"')+
+     (st.type==='livraison'?f('k-adr','Adresse de livraison (quartier, rue, porte)',st.adr,'Ex. Badalabougou, rue 136, porte 22','text','maxlength="120" autocomplete="street-address"')+f('k-rep','Point de repère (facultatif)',st.rep,'Ex. à côté de la pharmacie','text','maxlength="80"'):'')+
+     '<div class="field"><label for="k-h">'+(st.type==='livraison'?'Heure de livraison souhaitée':'Heure de retrait')+'</label><input id="k-h" type="time" value="'+esc(st.heure)+'"><small style="color:var(--mut)">Laissez vide pour « dès que possible ».</small></div>'+
+     (st.type==='livraison'?'<p class="note" style="text-align:left">Les éventuels frais de livraison vous sont confirmés sur WhatsApp avant le départ.</p>':'<p class="note" style="text-align:left">Retrait chez KACTUS · TALA, '+esc((D&&D.adresse)||'Bamako')+'.</p>'):'')+'</section>';
   return top()+'<button type="button" class="back" data-a="menu">← Continuer mes achats</button>'+
-   '<section class="card"><h2>Ma commande · table '+esc(st.table)+'</h2><div>'+lines+'</div><div class="tot"><span>Total</span><strong>'+money(total())+'</strong></div></section>'+
-   '<section class="card"><h2>Comment réglez-vous ?</h2><div class="modes" role="group" aria-label="Paiement">'+MODES.map(m=>'<button type="button" data-a="mode" data-m="'+esc(m)+'" aria-pressed="'+(m===st.mode)+'">'+IC[m]+' '+esc(m)+'</button>').join('')+'</div><div class="ins">'+ins()+'</div></section>'+
-   '<section class="card"><div class="field"><label for="k-name">Votre prénom (facultatif)</label><input id="k-name" type="text" maxlength="40" autocomplete="given-name" value="'+esc(st.name)+'"></div>'+
+   '<section class="card"><h2>Ma commande'+(st.type==='table'?' · table '+esc(st.table):'')+'</h2><div>'+lines+'</div><div class="tot"><span>Total</span><strong>'+money(total())+'</strong></div></section>'+who+
+   (st.type?'<section class="card"><h2>Comment réglerez-vous ?</h2><div class="modes" role="group" aria-label="Paiement">'+modes().map(m=>'<button type="button" data-a="mode" data-m="'+esc(m)+'" aria-pressed="'+(m===st.mode)+'">'+IC[m]+' '+esc(m)+'</button>').join('')+'</div><div class="ins">'+ins()+'</div></section>':'')+
+   '<section class="card">'+(st.type==='table'?f('k-name','Votre prénom (facultatif)',st.name,'','text','maxlength="40" autocomplete="given-name"'):'')+
    '<div class="field"><label for="k-note">Une précision pour la cuisine ? (facultatif)</label><input id="k-note" type="text" maxlength="140" placeholder="Ex. sans sucre, bien chaud" value="'+esc(st.note)+'"></div>'+
-   (L?'<a class="go" id="k-go" href="'+esc(L)+'" target="_blank" rel="noopener noreferrer" data-a="sent">💬 Envoyer ma commande sur WhatsApp</a><p class="note">WhatsApp s\'ouvre avec votre commande déjà écrite : il ne reste qu\'à appuyer sur Envoyer.</p>'
-     :'<div class="ins"><b>Montrez cet écran à un serveur</b> : il saisit votre commande en un instant.</div>')+
-   (st.sent?'<div class="ok"><span>✅</span><div><b>Dernière étape dans WhatsApp</b><br>Si le message est bien parti, l\'équipe vous répond et prépare votre commande. WhatsApp ne s\'est pas ouvert ? Copiez le message ci-dessous et envoyez-le au '+esc(WA?'+'+WA:'café')+'.</div></div><div class="msg" id="k-msg">'+esc(msg())+'</div><button type="button" class="ghost" data-a="copy">Copier le message</button><button type="button" class="ghost" data-a="reset">Nouvelle commande</button>':'')+
+   (!WA?'<div class="ins"><b>Commande en ligne indisponible pour le moment.</b> Appelez-nous ou écrivez-nous sur WhatsApp.</div>':
+    ok?'<a class="go" id="k-go" href="'+esc(L)+'" target="_blank" rel="noopener noreferrer" data-a="sent">💬 Envoyer ma commande sur WhatsApp</a><p class="note">WhatsApp s\'ouvre avec votre commande déjà écrite : il ne reste qu\'à appuyer sur Envoyer.</p>'
+      :'<a class="go" id="k-go" aria-disabled="true">💬 Envoyer ma commande sur WhatsApp</a><p class="note" id="k-miss">Il manque : '+esc(mi.join(', '))+'.</p>')+
+   (st.sent?'<div class="ok"><span>✅</span><div><b>Dernière étape dans WhatsApp</b><br>Si le message est bien parti, l\'équipe vous répond pour confirmer. WhatsApp ne s\'est pas ouvert ? Copiez le message ci-dessous et envoyez-le au +'+esc(WA)+'.</div></div><div class="msg" id="k-msg">'+esc(msg())+'</div><button type="button" class="ghost" data-a="copy">Copier le message</button><button type="button" class="ghost" data-a="reset">Nouvelle commande</button>':'')+
    '</section>';
 }
 function render(){
   const a=document.activeElement,id=a&&a.id,v=a&&a.value,sy=window.scrollY;
-  $('#app').innerHTML=!st.table||st.view==='table'?vTable():st.view==='cart'?vCart():vMenu();
+  $('#app').innerHTML=st.view==='cart'?vCart():vMenu();
   if(id){const n=document.getElementById(id);if(n){n.focus();if(v!=null&&n.value!==v)n.value=v}}
   if(st.keep)window.scrollTo(0,sy);st.keep=false;
+}
+function refreshGo(){
+  const g=$('#k-go'),mi=missing(),ok=!mi.length&&!!WA;if(!g)return;
+  if(ok){g.removeAttribute('aria-disabled');g.href=waLink();g.target='_blank';g.rel='noopener noreferrer';g.dataset.a='sent';const m=$('#k-miss');if(m){m.id='';m.textContent='WhatsApp s\'ouvre avec votre commande déjà écrite : il ne reste qu\'à appuyer sur Envoyer.'}}
+  else{g.setAttribute('aria-disabled','true');g.removeAttribute('href');delete g.dataset.a;const m=$('#k-miss')||(g.nextElementSibling&&g.nextElementSibling.classList.contains('note')?g.nextElementSibling:null);if(m){m.id='k-miss';m.textContent='Il manque : '+mi.join(', ')+'.'}}
+  const k=$('#k-msg');if(k)k.textContent=msg();
 }
 function go(v){st.view=v;st.keep=false;render();window.scrollTo(0,0)}
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-a]');if(!b)return;const a=b.dataset.a;
-  if(a==='tbl'){st.view='table';st.err='';render();return}
   if(a==='cart'){st.sent=false;go('cart');return}
   if(a==='menu'){go('menu');return}
   if(a==='uni'){st.u=b.dataset.u;st.cat='';st.keep=true;render();return}
   if(a==='cat'){st.cat=b.dataset.c;st.keep=true;render();return}
+  if(a==='type'){st.type=b.dataset.t;st.sent=false;save();st.keep=true;render();return}
   if(a==='add'){const u=U(),it=find(u.u,b.dataset.n);if(!it)return;const x=st.cart.find(i=>i.u===u.u&&i.n===it.nom);if(x)x.q++;else st.cart.push({u:u.u,n:it.nom,p:it.prix,q:1});st.last=it.nom;save();st.keep=true;render();setTimeout(()=>{st.last=''},400);return}
   if(a==='q'){const u=b.dataset.u||U().u,x=st.cart.find(i=>i.u===u&&i.n===b.dataset.n);if(!x)return;x.q+=+b.dataset.d;if(x.q<=0)st.cart.splice(st.cart.indexOf(x),1);st.sent=false;save();st.keep=true;render();return}
   if(a==='mode'){st.mode=b.dataset.m;st.sent=false;save();st.keep=true;render();return}
@@ -189,18 +215,9 @@ document.addEventListener('click',e=>{
   if(a==='reset'){st.cart=[];st.note='';st.sent=false;save();go('menu');return}
 });
 function sel(){const m=$('#k-msg');if(!m)return;const r=document.createRange();r.selectNodeContents(m);const s=getSelection();s.removeAllRanges();s.addRange(r)}
-document.addEventListener('submit',e=>{
-  if(e.target.dataset.f!=='tbl')return;e.preventDefault();
-  const v=parseInt(($('#k-t')||{}).value,10),max=(D&&D.tables)||200;
-  if(!v){st.err='Entrez le numéro de votre table.';render();return}
-  if(v>max){st.err='La table '+v+' n\'existe pas. Vérifiez le numéro.';render();return}
-  st.table=String(v);st.err='';save();go('menu');
-});
-document.addEventListener('input',e=>{
-  const el=e.target;
-  if(el.id==='k-note'||el.id==='k-name'){if(el.id==='k-note')st.note=el.value;else st.name=el.value;save();const g=$('#k-go');if(g&&WA)g.href=waLink();const m=$('#k-msg');if(m)m.textContent=msg()}
-});
-window.addEventListener('hashchange',()=>{const t=(String(location.hash).match(/t(\d{1,3})/i)||[])[1];if(t){st.table=t;go('menu')}});
+const FIELDS={'k-note':'note','k-name':'name','k-tel':'tel','k-adr':'adr','k-rep':'rep','k-h':'heure'};
+document.addEventListener('input',e=>{const k=FIELDS[e.target.id];if(!k)return;st[k]=e.target.value;save();refreshGo()});
+document.addEventListener('change',e=>{const k=FIELDS[e.target.id];if(!k)return;st[k]=e.target.value;save();refreshGo()});
 document.addEventListener('error',e=>{const t=e.target;if(t&&t.tagName==='IMG'&&t.dataset.emo)t.replaceWith(document.createTextNode(t.dataset.emo))},true);
 render();
 })();
